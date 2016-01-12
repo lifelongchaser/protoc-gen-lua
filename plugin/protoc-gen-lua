@@ -282,7 +282,7 @@ def code_gen_enum(enum_desc, env):
     env.exit()
     return obj_name
 
-def code_gen_field(index, field_desc, env):
+def code_gen_field(index, field_desc, env, includes):
     full_name = env.get_local_name() + '.' + field_desc.name
     obj_name = full_name.upper().replace('.', '_') + '_FIELD'
     env.descriptor.append(
@@ -316,7 +316,9 @@ def code_gen_field(index, field_desc, env):
         context('.default_value = %s\n' % default_value)
 
     if field_desc.HasField('type_name'):
-        type_name = env.get_ref_name(field_desc.type_name).upper().replace('.', '_')
+        type_name = env.get_ref_name(field_desc.type_name)
+        if not type_name.split('.')[0] in [filename+"_pb" for filename in includes]:
+            type_name = type_name.upper().replace('.', '_')
         if field_desc.type == FDP.TYPE_MESSAGE:
             context('.message_type = %s\n' % type_name)
         else:
@@ -333,7 +335,7 @@ def code_gen_field(index, field_desc, env):
     env.context.append(context.getvalue())
     return obj_name
 
-def code_gen_message(message_descriptor, env, containing_type = None):
+def code_gen_message(message_descriptor, env, includes, containing_type = None):
     env.enter(message_descriptor.name)
     full_name = env.get_local_name()
     obj_name = full_name.upper().replace('.', '_')
@@ -347,7 +349,7 @@ def code_gen_message(message_descriptor, env, containing_type = None):
 
     nested_types = []
     for msg_desc in message_descriptor.nested_type:
-        msg_name = code_gen_message(msg_desc, env, obj_name)
+        msg_name = code_gen_message(msg_desc, env, includes, obj_name)
         nested_types.append(msg_name)
     context('.nested_types = {%s}\n' % ', '.join(nested_types))
 
@@ -358,7 +360,7 @@ def code_gen_message(message_descriptor, env, containing_type = None):
 
     fields = []
     for i, field_desc in enumerate(message_descriptor.field):
-        fields.append(code_gen_field(i, field_desc, env))
+        fields.append(code_gen_field(i, field_desc, env, includes))
 
     context('.fields = {%s}\n' % ', '.join(fields))
     if len(message_descriptor.extension_range) > 0:
@@ -368,7 +370,7 @@ def code_gen_message(message_descriptor, env, containing_type = None):
 
     extensions = []
     for i, field_desc in enumerate(message_descriptor.extension):
-        extensions.append(code_gen_field(i, field_desc, env))
+        extensions.append(code_gen_field(i, field_desc, env, includes))
     context('.extensions = {%s}\n' % ', '.join(extensions))
 
     if containing_type:
@@ -404,7 +406,7 @@ def code_gen_file(proto_file, env, is_gen):
                                               enum_value.number))
 
     for msg_desc in proto_file.message_type:
-        code_gen_message(msg_desc, env)
+        code_gen_message(msg_desc, env, includes)
 
     if is_gen:
         lua = Writer()
